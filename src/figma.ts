@@ -5,7 +5,7 @@
 import spec from "../spec/tokens.json";
 import { buildPlan, hueOnlyShifts, namePalettes, appearanceRenames } from "./foundations.ts";
 import type { CollectionName, Inputs, Plan, ReportEntry, Value, VariableDef } from "./foundations.ts";
-import { appearancePreviews } from "./previews.ts";
+import { appearancePreviews, brandStar } from "./previews.ts";
 import { chosenPlatforms, skippedCollections, tableSourceAfterWrite } from "./selection.ts";
 import { fileHasTokens, inputsToShow, readSavedInputs } from "./saved-inputs.ts";
 import { clampWindowSize, WINDOW_SIZE } from "./window-size.ts";
@@ -227,12 +227,15 @@ function previewNames(inputs: Inputs): void {
     const gray = spec.primitives.neutralPalette.steps as Record<string, string>;
     const palettes = naming.colors.map((c) => {
       const p = built.find((x) => x.name === naming.paletteOf(c.theme, c.role));
-      return { theme: c.theme, role: c.role, hexes: steps.map((s) => (p ? p.steps[s].hex : gray[String(s)])) };
+      const hexes = steps.map((s) => (p ? p.steps[s].hex : gray[String(s)]));
+      // The star on the step that holds the brand HEX. A color with no hue (Gray palette) gets none.
+      const star = p ? brandStar(p.anchor, Object.fromEntries(steps.map((s, i) => [s, hexes[i]]))) : null;
+      return { theme: c.theme, role: c.role, hexes, star };
     });
     // Each theme's neutral: Color/Gray, or its tinted neutral (section 1.1.9).
     for (let i = 0; i < (inputs.themes ?? []).length; i++) {
       const neutral = naming.neutralStepsOf(i);
-      palettes.push({ theme: i, role: "neutral", hexes: steps.map((s) => neutral[s]) });
+      palettes.push({ theme: i, role: "neutral", hexes: steps.map((s) => neutral[s]), star: null });
     }
     // The real colors of each appearance card, from the first theme. A brand with no hue uses Gray.
     const brandName = naming.paletteOf(0, "brand");

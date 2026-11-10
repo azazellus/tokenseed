@@ -11,7 +11,7 @@ import { appearanceRenames, buildPlan, namePalettes, themeModeNames, weightSlotO
 import type { Inputs, Plan, ThemeInput } from "../src/foundations.ts";
 import { buildTables } from "../src/tables.ts";
 import { buildTextStyles, buildTextStyleTables, findOrphanTextStyles, shortNumber } from "../src/text-styles.ts";
-import { appearancePreviews } from "../src/previews.ts";
+import { appearancePreviews, brandStar } from "../src/previews.ts";
 import { fileHasTokens, inputsToShow, readSavedInputs } from "../src/saved-inputs.ts";
 import { clampWindowSize, WINDOW_SIZE } from "../src/window-size.ts";
 import { buildColorMaps, MAP_BLOCKS, MAP_HEIGHT, MAP_WIDTH } from "../src/color-maps.ts";
@@ -1550,6 +1550,21 @@ assert.deepEqual([CHROMA_MULT[800], CHROMA_MULT[850], CHROMA_MULT[900], CHROMA_M
   const values = (cls: string) => [...page.matchAll(new RegExp(`class="cb ${cls}" value="([^"]+)"`, "g"))].map((m) => m[1]);
   assert.deepEqual(values("choose-collection"), spec.inputs.collections.allowed);
   assert.deepEqual(values("choose-platform"), spec.inputs.textStylePlatforms.allowed);
+}
+
+// Brand star (src/previews.ts): on the anchor step, white from step 400 down, step 600 of the palette on 300 or lighter.
+{
+  const hexes: Record<string, string> = { 50: "#F1", 200: "#F2", 300: "#F3", 400: "#P4", 600: "#P6", 700: "#P7" };
+  assert.deepEqual(brandStar(700, hexes), { step: 700, color: "#FFFFFF" });
+  assert.deepEqual(brandStar(400, hexes), { step: 400, color: "#FFFFFF" });
+  assert.deepEqual(brandStar(300, hexes), { step: 300, color: "#P6" });
+  assert.deepEqual(brandStar(200, hexes), { step: 200, color: "#P6" });
+  assert.deepEqual(brandStar(50, hexes), { step: 50, color: "#P6" });
+  assert.equal(brandStar(-1, hexes), null); // status and custom palettes have no anchor
+  // A real brand: the star sits where the brand HEX is.
+  const p = buildPalette("brand", "#A930FF");
+  const real = Object.fromEntries(STEPS.map((s) => [s, p.steps[s].hex]));
+  assert.equal(real[brandStar(p.anchor, real)!.step].toUpperCase(), "#A930FF");
 }
 
 console.log("All logic tests passed.");

@@ -2536,6 +2536,12 @@
       };
     });
   }
+  var STAR_LIGHT_UP_TO = 300;
+  var STAR_DARK_STEP = 600;
+  function brandStar(anchor, hexes) {
+    if (!(anchor in hexes)) return null;
+    return { step: anchor, color: anchor <= STAR_LIGHT_UP_TO ? hexes[String(STAR_DARK_STEP)] : "#FFFFFF" };
+  }
 
   // src/saved-inputs.ts
   var TOKEN_COLLECTIONS = ["Primitives", "Theme", "Appearance", "ColorScheme"];
@@ -4080,11 +4086,13 @@ Fixed Dim`, x: x + 196, y: 508, w: 196, h: 112 },
       const gray = tokens_default.primitives.neutralPalette.steps;
       const palettes = naming.colors.map((c) => {
         const p = built.find((x) => x.name === naming.paletteOf(c.theme, c.role));
-        return { theme: c.theme, role: c.role, hexes: steps.map((s) => p ? p.steps[s].hex : gray[String(s)]) };
+        const hexes = steps.map((s) => p ? p.steps[s].hex : gray[String(s)]);
+        const star = p ? brandStar(p.anchor, Object.fromEntries(steps.map((s, i) => [s, hexes[i]]))) : null;
+        return { theme: c.theme, role: c.role, hexes, star };
       });
       for (let i = 0; i < ((_a = inputs.themes) != null ? _a : []).length; i++) {
         const neutral = naming.neutralStepsOf(i);
-        palettes.push({ theme: i, role: "neutral", hexes: steps.map((s) => neutral[s]) });
+        palettes.push({ theme: i, role: "neutral", hexes: steps.map((s) => neutral[s]), star: null });
       }
       const brandName = naming.paletteOf(0, "brand");
       const brandPalette = built.find((x) => x.name === brandName);
