@@ -20,6 +20,7 @@
     --panel: #ffffff;     /* color/bg/container: theme, color mode, export and report panels */
     --overlay: #ffffff;   /* color/elevation/surface/overlay/default: the top bar */
     --icon-inverse: #ffffff; /* icons on the main button and in ticked checkboxes */
+    --icon-fixed-light: #ffffff; /* color/icon/fixed/light: the same in every mode (the brand star) */
     --add-bg: #eff1ff;    /* color/bg/brand/softest: the "Add …" placeholder sections */
     --field: #ffffff;     /* color/bg/input */
     --action-bg: #ffffff; /* color/bg/action: buttons, weight chips and the selected tab */
@@ -58,6 +59,7 @@
     --panel: #1d1c23;
     --overlay: #1d1c23;
     --icon-inverse: #0d0c10;
+    --icon-fixed-light: #ffffff; /* color/icon/fixed/light: the same in every mode (the brand star) */
     --add-bg: #171730;
     --field: #24232b;
     --action-bg: #24232b;
@@ -1152,8 +1154,9 @@
     for (const p of palettes) {
       const strip = colorRow(p.theme, p.role)?.querySelector(".palette");
       if (!strip) continue;
-      // The step that holds the brand HEX gets a star, in the color the plugin chose (white, or step 600 on step 300 or lighter).
-      const star = (i) => (p.star && STEPS[i] === p.star.step ? `<span class="icon i16 tinted" style="--shape: url('${iconUrl("star")}'); background: ${p.star.color}"></span>` : "");
+      // The step that holds the brand HEX gets a star: step 600 of the palette when the plugin sends a color
+      // (step 300 or lighter), otherwise color/icon/fixed/light.
+      const star = (i) => (p.star && STEPS[i] === p.star.step ? `<span class="icon i16 tinted" style="--shape: url('${iconUrl("star")}'); background: ${p.star.color ?? "var(--icon-fixed-light)"}"></span>` : "");
       strip.innerHTML = p.hexes.map((hex, i) => `<span style="background:${hex}" title="${STEPS[i]} · ${hex}">${star(i)}</span>`).join("");
     }
   }

@@ -394,7 +394,7 @@ assert.equal(appNames.indexOf("color/border/brand/strong"), appNames.indexOf("co
   // The neutral default and its variant come first: color/text/default and color/text/subtle, and so on.
   assert.deepEqual(rolesIn("color/text/"), ["default", "subtle", "disabled", "inverse", "link", "fixed", "brand", "selected", "success", "danger", "warning", "info"]);
   assert.deepEqual(rolesIn("color/border/"), ["default", "strong", "disabled", "focus", "inverse", "brand", "selected", "success", "danger", "warning", "info"]);
-  assert.deepEqual(rolesIn("color/icon/"), ["default", "subtle", "disabled", "inverse", "brand", "success", "danger", "warning", "info"]);
+  assert.deepEqual(rolesIn("color/icon/"), ["default", "subtle", "disabled", "inverse", "fixed", "brand", "success", "danger", "warning", "info"]);
 }
 // Renamed tokens (section 3.2, appearance.renamedTokens): every new name exists, no old name does, and a file
 // that has an old name gets it renamed in place, unless the new name is already there.
@@ -1084,23 +1084,25 @@ assert.ok(twoCustom.variables.filter((v) => v.collection === "Appearance").every
     assert.equal(value(p700, name, "Light"), `color/${family}/700`, name);
     assert.equal(value(p700, name, "Dark"), value(plain, name, "Dark"), name);
   }
-  // Nothing else changes: not the bold tokens, and not the bolder background. Fixed dark text follows Light's step.
-  const moved = new Set([...spec.appearance.textFill.tokens, "color/text/fixed/dark"]);
+  // Nothing else changes: not the bold tokens, and not the bolder background. Fixed dark text and icons follow Light's step.
+  const moved = new Set([...spec.appearance.textFill.tokens, "color/text/fixed/dark", "color/icon/fixed/dark"]);
   for (const v of p700.variables.filter((x) => x.collection === "Appearance" && !moved.has(x.name))) {
     assert.deepEqual(v.values, plain.variables.find((x) => x.collection === "Appearance" && x.name === v.name)!.values, v.name);
   }
-  // The fixed text tokens are the bolder neutral of one base, at that base's step, in every mode.
+  // The fixed text and icon tokens are the bolder neutral of one base, at that base's step, in every mode.
   for (const [inputs, dark, light] of [[{}, "900", "white"], [{ lightTextFillStep: 800, darkTextFillStep: 100 }, "800", "100"],
     [{ lightTextFillStep: "black", darkTextFillStep: 50, extraAppearances: [{ name: "Dim", base: "Dark", canvasStep: 850, textFillStep: 150 }, { name: "Paper", base: "Light", textFillStep: 700 }] }, "black", "50"],
     [{ includeDark: false, darkTextFillStep: 150 }, "900", "150"]] as [Partial<Inputs>, string, string][]) {
     const p = planOf(inputs);
     const modes = p.collections.find((c) => c.name === "Appearance")!.modes;
-    for (const m of modes) {
-      assert.equal(value(p, "color/text/fixed/dark", m), `color/neutral/${dark}`, `${JSON.stringify(inputs)} ${m}`);
-      assert.equal(value(p, "color/text/fixed/light", m), `color/neutral/${light}`, `${JSON.stringify(inputs)} ${m}`);
+    for (const kind of ["text", "icon"]) {
+      for (const m of modes) {
+        assert.equal(value(p, `color/${kind}/fixed/dark`, m), `color/neutral/${dark}`, `${kind} ${JSON.stringify(inputs)} ${m}`);
+        assert.equal(value(p, `color/${kind}/fixed/light`, m), `color/neutral/${light}`, `${kind} ${JSON.stringify(inputs)} ${m}`);
+      }
+      assert.equal(value(p, `color/${kind}/fixed/dark`, "Light"), value(p, `color/${kind}/default`, "Light"));
+      if (modes.includes("Dark")) assert.equal(value(p, `color/${kind}/fixed/light`, "Dark"), value(p, `color/${kind}/default`, "Dark"));
     }
-    assert.equal(value(p, "color/text/fixed/dark", "Light"), value(p, "color/text/default", "Light"));
-    if (modes.includes("Dark")) assert.equal(value(p, "color/text/fixed/light", "Dark"), value(p, "color/text/default", "Dark"));
   }
   // Black and white exist only in neutral.
   const ends = planOf({ lightTextFillStep: "black", darkTextFillStep: "white" });
@@ -1552,11 +1554,12 @@ assert.deepEqual([CHROMA_MULT[800], CHROMA_MULT[850], CHROMA_MULT[900], CHROMA_M
   assert.deepEqual(values("choose-platform"), spec.inputs.textStylePlatforms.allowed);
 }
 
-// Brand star (src/previews.ts): on the anchor step, white from step 400 down, step 600 of the palette on 300 or lighter.
+// Brand star (src/previews.ts): on the anchor step, the window's fixed light icon color from step 400 down
+// (no color sent), step 600 of the palette on 300 or lighter.
 {
   const hexes: Record<string, string> = { 50: "#F1", 200: "#F2", 300: "#F3", 400: "#P4", 600: "#P6", 700: "#P7" };
-  assert.deepEqual(brandStar(700, hexes), { step: 700, color: "#FFFFFF" });
-  assert.deepEqual(brandStar(400, hexes), { step: 400, color: "#FFFFFF" });
+  assert.deepEqual(brandStar(700, hexes), { step: 700 });
+  assert.deepEqual(brandStar(400, hexes), { step: 400 });
   assert.deepEqual(brandStar(300, hexes), { step: 300, color: "#P6" });
   assert.deepEqual(brandStar(200, hexes), { step: 200, color: "#P6" });
   assert.deepEqual(brandStar(50, hexes), { step: 50, color: "#P6" });

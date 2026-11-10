@@ -561,7 +561,7 @@ Some tokens have no emphasis suffix. These are the only permitted exceptions:
 | bg | base, container, input, action, disabled |
 | text | disabled, inverse, link, fixed/dark, fixed/light |
 | border | danger, disabled, focus, info, inverse, selected, success, warning |
-| icon | danger, disabled, inverse, info, success, warning |
+| icon | danger, disabled, inverse, info, success, warning, fixed/dark, fixed/light |
 | elevation/surface | canvas/default, canvas/deep, canvas/deeper, menu, overlay/default, overlay/deep, overlay/deeper, raised, scrim |
 | elevation/shadow | card, convex/top, convex/bottom, concave/top, concave/bottom |
 
@@ -667,6 +667,8 @@ Their `softest`, `softer`, and `soft` backgrounds follow the dark canvas like th
 | color/icon/danger | color/danger/500 | color/danger/300 |
 | color/icon/default | color/neutral/900 | color/neutral/white |
 | color/icon/disabled | color/neutral/alpha/black/a24 | color/neutral/alpha/white/a16 |
+| color/icon/fixed/dark | color/neutral/900 | color/neutral/900 |
+| color/icon/fixed/light | color/neutral/white | color/neutral/white |
 | color/icon/info | color/info/500 | color/info/300 |
 | color/icon/inverse | color/neutral/white | color/neutral/950 |
 | color/icon/subtle | color/neutral/500 | color/neutral/300 |
@@ -955,7 +957,7 @@ Text fill rules:
 - The text fill step sets how strong the strongest text and icons are in an appearance. Each appearance has its own step. The values in section 3.3 are for the default steps, 900 in Light and white in Dark.
 - With another step, these tokens use it in that mode, in their own color family: `color/text/default` and `color/icon/default` (neutral), `color/text/{role}/strong` for brand, danger, info, selected, success, warning, and every custom role, and `color/icon/brand/strong`. The list is in `tokens.json`, under `appearance.textFill`.
 - Only neutral has black and white. Where neutral uses black, the other families use step 950. Where neutral uses white, they use step 50.
-- The fixed text tokens keep one value in every mode. `color/text/fixed/dark` is the same Theme token as `color/text/default` in Light, so it uses the Light text fill step. `color/text/fixed/light` is the same as `color/text/default` in Dark, so it uses the Dark text fill step. Both lists are in `tokens.json`, under `appearance.textFill.fixedTokens`.
+- The fixed text and icon tokens keep one value in every mode. `color/text/fixed/dark` is the same Theme token as `color/text/default` in Light, so it uses the Light text fill step. `color/text/fixed/light` is the same as `color/text/default` in Dark, so it uses the Dark text fill step. `color/icon/fixed/dark` and `color/icon/fixed/light` do the same with `color/icon/default`. The list is in `tokens.json`, under `appearance.textFill.fixedTokens`.
 - Bold tokens and `color/bg/neutral/bolder` do not change. ColorScheme tokens that are the same as a bolder token follow it (section 3.5). The contrast checks in section 3.4 run on the chosen values.
 
 Values for each text fill step:

@@ -22,7 +22,7 @@
 
   // spec/tokens.json
   var tokens_default = {
-    version: "1.35.0",
+    version: "1.36.0",
     description: "Source of truth for the design foundations specification (foundations-spec.md). Palette HEX values are user inputs and palette names come from primitives.paletteNaming; this file defines the rules, inputs, Theme mappings, alpha tokens, Appearance mappings, and ColorScheme mappings.",
     collections: {
       Primitives: { modes: ["Default"] },
@@ -716,8 +716,8 @@
           "color/text/warning/strong"
         ],
         customRoleTokens: ["color/text/{role}/strong"],
-        fixedTokens: { "color/text/fixed/dark": "Light", "color/text/fixed/light": "Dark" },
-        fixedTokensRule: "Each fixed token is the same Theme token as color/text/default in the named base mode, and keeps it in every mode: it uses the text fill step of that base (inputs.lightTextFillStep or inputs.darkTextFillStep), not the step of the mode it is in.",
+        fixedTokens: { "color/text/fixed/dark": "Light", "color/text/fixed/light": "Dark", "color/icon/fixed/dark": "Light", "color/icon/fixed/light": "Dark" },
+        fixedTokensRule: "Each fixed token is the same Theme token as color/text/default (for icons, color/icon/default) in the named base mode, and keeps it in every mode: it uses the text fill step of that base (inputs.lightTextFillStep or inputs.darkTextFillStep), not the step of the mode it is in.",
         stepsWithoutColor: { black: 950, white: 50 }
       },
       lightCanvas: {
@@ -881,6 +881,8 @@
         "color/icon/subtle": { Light: "color/neutral/500", Dark: "color/neutral/300" },
         "color/icon/disabled": { Light: "color/neutral/alpha/black/a24", Dark: "color/neutral/alpha/white/a16" },
         "color/icon/inverse": { Light: "color/neutral/white", Dark: "color/neutral/950" },
+        "color/icon/fixed/dark": { Light: "color/neutral/900", Dark: "color/neutral/900" },
+        "color/icon/fixed/light": { Light: "color/neutral/white", Dark: "color/neutral/white" },
         "color/icon/brand/default": { Light: "color/brand/500", Dark: "color/brand/300" },
         "color/icon/brand/strong": { Light: "color/brand/900", Dark: "color/brand/50" },
         "color/icon/brand/accent": { Light: "color/brand/400", Dark: "color/brand/400" },
@@ -2540,7 +2542,7 @@
   var STAR_DARK_STEP = 600;
   function brandStar(anchor, hexes) {
     if (!(anchor in hexes)) return null;
-    return { step: anchor, color: anchor <= STAR_LIGHT_UP_TO ? hexes[String(STAR_DARK_STEP)] : "#FFFFFF" };
+    return anchor <= STAR_LIGHT_UP_TO ? { step: anchor, color: hexes[String(STAR_DARK_STEP)] } : { step: anchor };
   }
 
   // src/saved-inputs.ts

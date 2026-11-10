@@ -57,12 +57,12 @@ export function appearancePreviews(
 }
 
 // The star on a brand palette strip in the window: it marks the step that holds the brand HEX (its anchor).
-// It is white, except on the light steps (300 or lighter), where white would hardly show: there it takes
-// step 600 of the same palette. anchor is -1 for palettes with no anchor, which get no star.
-// hexes: the palette, step -> HEX.
+// On step 400 and darker it has no color here: the window paints it with its own color/icon/fixed/light.
+// On the light steps (300 or lighter), where that would hardly show, it takes step 600 of the same palette.
+// anchor is -1 for palettes with no anchor, which get no star. hexes: the palette, step -> HEX.
 export const STAR_LIGHT_UP_TO = 300; // the darkest step that counts as light
 export const STAR_DARK_STEP = 600; // the palette step the star takes on light steps
-export function brandStar(anchor: number, hexes: Record<string, string>): { step: number; color: string } | null {
+export function brandStar(anchor: number, hexes: Record<string, string>): { step: number; color?: string } | null {
   if (!(anchor in hexes)) return null;
-  return { step: anchor, color: anchor <= STAR_LIGHT_UP_TO ? hexes[String(STAR_DARK_STEP)] : "#FFFFFF" };
+  return anchor <= STAR_LIGHT_UP_TO ? { step: anchor, color: hexes[String(STAR_DARK_STEP)] } : { step: anchor };
 }
