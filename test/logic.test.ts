@@ -16,7 +16,7 @@ import { fileHasTokens, inputsToShow, readSavedInputs } from "../src/saved-input
 import { clampWindowSize, WINDOW_SIZE } from "../src/window-size.ts";
 import { buildColorMaps, MAP_BLOCKS, MAP_HEIGHT, MAP_WIDTH } from "../src/color-maps.ts";
 import { chosenPlatforms, skippedCollections, tableSourceAfterWrite } from "../src/selection.ts";
-import { buildAppearanceExport, buildColorSchemeExport, exportFiles, exportName, kotlinFiles } from "../src/export.ts";
+import { appearanceKotlinFiles, buildAppearanceExport, buildColorSchemeExport, exportFiles, exportName, kotlinFiles } from "../src/export.ts";
 
 // 1. Color math round trip: HEX -> OKLCH -> HEX must return the same value.
 for (const hex of ["#78449F", "#FFFFFF", "#000000", "#0D0D0D", "#D62828", "#2A9D8F", "#F4A261", "#EAEAEA"]) {
@@ -647,6 +647,54 @@ assert.equal(per[0].data.version, 1);
 const twin = { version: 1 as const, themes: { "Night Shop": ex.data.themes["Main theme"], "night-shop": ex.data.themes["Custom theme"] } };
 assert.deepEqual(exportFiles(twin, "perTheme").map((f) => f.fileName), ["appearance-tokens-night-shop.json", "appearance-tokens-night-shop-2.json"]);
 
+// 13c. Appearance tokens as Kotlin (section 6.1.2): one AppearanceColors class, one value per theme and appearance.
+{
+  const exCamel = buildAppearanceExport(plan2, opts(false, "camel"));
+  const ktA = appearanceKotlinFiles(exCamel.data, "all", "com.acme.theme");
+  assert.deepEqual(ktA.problems, []);
+  assert.deepEqual(ktA.files.map((f) => f.fileName), ["AppearanceColors.kt"]);
+  const text = ktA.files[0].text!;
+  assert.ok(text.includes("package com.acme.theme\n"));
+  assert.ok(text.includes("@Immutable\ndata class AppearanceColors(\n"));
+  const names = Object.keys(exCamel.data.themes["Main theme"].appearances.Light);
+  assert.equal(names.length, count2("Appearance"));
+  for (const n of names) assert.ok(text.includes(`    val ${n}: Color,\n`), n); // every token is a property
+  for (const v of ["MainThemeLight", "MainThemeDark", "CustomThemeLight", "CustomThemeDark"]) assert.ok(text.includes(`val ${v}AppearanceColors = AppearanceColors(\n`), v);
+  const brandBold = exCamel.data.themes["Main theme"].appearances.Light.bgBrandBold.slice(1);
+  assert.ok(text.includes(`    bgBrandBold = Color(0xFF${brandBold}),`));
+  // Alpha first, as Compose wants it.
+  const disabled = exCamel.data.themes["Main theme"].appearances.Light.bgDisabled.slice(1);
+  assert.equal(disabled.length, 8);
+  assert.ok(text.includes(`    bgDisabled = Color(0x${disabled.slice(6)}${disabled.slice(0, 6)}),`));
+  // Every value gives every property: as many assignments as properties, per value.
+  assert.equal(text.split("\n").filter((l) => /^    [a-z][A-Za-z0-9]* = Color\(0x[0-9A-F]{8}\),$/.test(l)).length, names.length * 4);
+  // Keeping "color" keeps it in the property names.
+  const withColor = appearanceKotlinFiles(buildAppearanceExport(plan2, opts(true, "camel")).data, "all", "com.acme.theme").files[0].text!;
+  assert.ok(withColor.includes("    val colorBgBrandBold: Color,"));
+  // One file per theme: the class on its own, then the values of each theme.
+  const perA = appearanceKotlinFiles(exCamel.data, "perTheme", "com.acme.theme");
+  assert.deepEqual(perA.files.map((f) => f.fileName), ["AppearanceColors.kt", "MainThemeAppearanceColors.kt", "CustomThemeAppearanceColors.kt"]);
+  assert.ok(perA.files[0].text!.includes("data class AppearanceColors(") && !perA.files[0].text!.includes("val MainThemeLight"));
+  assert.ok(perA.files[2].text!.includes("val CustomThemeDarkAppearanceColors = AppearanceColors(") && !perA.files[2].text!.includes("data class"));
+  // A bad package falls back to the default.
+  const badPkg = appearanceKotlinFiles(exCamel.data, "all", "Not A Package");
+  assert.equal(badPkg.problems.length, 1);
+  assert.ok(badPkg.files[0].text!.includes("package com.example.ui.theme\n"));
+  // A token missing in one theme (a missing Primitive) is left out of every value, and reported.
+  const exHole = buildAppearanceExport(broken, opts(false, "camel"));
+  const ktHole = appearanceKotlinFiles(exHole.data, "all", "com.acme.theme");
+  assert.ok(ktHole.problems.some((p) => p.startsWith("bgBrandBold is missing")));
+  assert.ok(!ktHole.files[0].text!.includes("bgBrandBold"));
+  // A name that is not a Kotlin property name (a token added by hand) is left out, and reported.
+  const odd = { version: 1 as const, themes: { T: { appearances: { Light: { bgBase: "#FFFFFF", "bg base": "#000000", in: "#111111" } } } } };
+  const ktOdd = appearanceKotlinFiles(odd, "all", "com.acme.theme");
+  assert.equal(ktOdd.problems.length, 2);
+  assert.ok(ktOdd.files[0].text!.includes("    val bgBase: Color,") && !ktOdd.files[0].text!.includes("bg base") && !ktOdd.files[0].text!.includes("val in:"));
+  // The window offers the format, with the package field and naming row that follow it.
+  const ui = readFileSync(new URL("../ui.html", import.meta.url), "utf8");
+  assert.ok(ui.includes('id="appearanceFormat"') && ui.includes('<option value="kotlin">Kotlin (Jetpack Compose)</option>') && ui.includes('id="appearanceKotlinPackage"'));
+}
+
 // 14. Palette names (src/naming.ts, section 1.1.8). The plugin names palettes from the HSL hue.
 assert.equal(hslHue("#FFFFFF"), null);
 assert.equal(hslHue("#808080"), null);
@@ -1174,7 +1222,7 @@ assert.ok(twoCustom.variables.filter((v) => v.collection === "Appearance").every
   assert.equal(light.brandBold, brand[500]);
   assert.equal(light.softNeutral, neutral[50]);
   assert.equal(light.softBrand, brand[50]);
-  assert.equal(light.border, "#0000003D");
+  assert.equal(light.border, "#00000029"); // black at 16%
   assert.equal(dark.canvas, neutral[900]); // the default dark canvas
   assert.equal(dark.text, "#FFFFFF"); // the default text fill
   assert.equal(dark.border, "#FFFFFF29");

@@ -1,5 +1,5 @@
-// Developer exports: the Appearance tokens, and the ColorScheme tokens for Android (as JSON or as Kotlin for
-// Jetpack Compose). Every token is resolved to a HEX value, for every theme and every appearance.
+// Developer exports: the Appearance tokens and the ColorScheme tokens for Android, each as JSON or as Kotlin
+// for Jetpack Compose. Every token is resolved to a HEX value, for every theme and every appearance.
 // Pure functions, no Figma API, so they can be tested with test/logic.test.ts.
 // The input has the same shape as the color tables use: a plan, or the variables read from the file.
 
@@ -187,6 +187,25 @@ function kotlinColor(hex: string): string {
 }
 
 const KOTLIN_PACKAGE = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/;
+const DEFAULT_KOTLIN_PACKAGE = "com.example.ui.theme";
+
+// The package the user typed, or the default when it is not a valid Kotlin package name (reported).
+function kotlinPackage(packageName: string, problems: string[]): string {
+  const pkg = packageName.trim();
+  if (KOTLIN_PACKAGE.test(pkg)) return pkg;
+  problems.push(`"${pkg}" is not a valid Kotlin package name, so ${DEFAULT_KOTLIN_PACKAGE} was used.`);
+  return DEFAULT_KOTLIN_PACKAGE;
+}
+
+// Two themes whose names differ only in punctuation would get the same file name: the second gets a number.
+function uniqueKotlinFileNames(files: ExportFile[]): void {
+  const seen = new Set<string>();
+  for (const f of files) {
+    const base = f.fileName.replace(/\.kt$/, "");
+    for (let n = 2; seen.has(f.fileName); n++) f.fileName = `${base}${n}.kt`;
+    seen.add(f.fileName);
+  }
+}
 
 // Kotlin files for Jetpack Compose: one lightColorScheme(...) or darkColorScheme(...) value per theme and
 // appearance, named like ThemeALightColorScheme. knownRoles is the list of Compose names the plugin
@@ -197,11 +216,7 @@ export function kotlinFiles(
   split: "all" | "perTheme", packageName: string, knownRoles: string[],
 ): { files: ExportFile[]; problems: string[] } {
   const problems: string[] = [];
-  let pkg = packageName.trim();
-  if (!KOTLIN_PACKAGE.test(pkg)) {
-    problems.push(`"${pkg}" is not a valid Kotlin package name, so com.example.ui.theme was used.`);
-    pkg = "com.example.ui.theme";
-  }
+  const pkg = kotlinPackage(packageName, problems);
   const unknown = new Set<string>();
   const usedNames = new Set<string>();
   // One "val ...ColorScheme = lightColorScheme(...)" per appearance of this theme.
@@ -225,13 +240,72 @@ export function kotlinFiles(
   const files: ExportFile[] = split === "all"
     ? [{ fileName: "ColorSchemes.kt", text: header + themes.map(schemesOf).join("\n") }]
     : themes.map((t) => ({ fileName: `${kotlinWord(t) || "Theme"}ColorScheme.kt`, text: header + schemesOf(t) }));
-  // Two themes whose names differ only in punctuation would get the same file name.
-  const seen = new Set<string>();
-  for (const f of files) {
-    const base = f.fileName.replace(/\.kt$/, "");
-    for (let n = 2; seen.has(f.fileName); n++) f.fileName = `${base}${n}.kt`;
-    seen.add(f.fileName);
-  }
+  uniqueKotlinFileNames(files);
   for (const role of unknown) problems.push(`${role} is not a Compose ColorScheme role, so it was left out of the Kotlin file.`);
+  return { files, problems };
+}
+
+// ---------- Appearance tokens as Kotlin ----------
+
+// Kotlin words that cannot be used as a property name.
+const KOTLIN_KEYWORDS = new Set(["as", "break", "class", "continue", "do", "else", "false", "for", "fun", "if", "in",
+  "interface", "is", "null", "object", "package", "return", "super", "this", "throw", "true", "try", "typealias",
+  "typeof", "val", "var", "when", "while"]);
+const APPEARANCE_CLASS = "AppearanceColors";
+
+// Kotlin files for Jetpack Compose with the Appearance tokens. data is the Appearance export built with camelCase
+// names (buildAppearanceExport with naming "camel"), so every token name is a Kotlin property name.
+// The files hold one class, AppearanceColors, with one Color property per token, and one value of it per theme
+// and appearance, named like MainThemeLightAppearanceColors. Every value must give every property, so a token
+// missing from any theme or appearance (it could not be resolved) is left out of all of them, and reported.
+// A name that is not a valid Kotlin property name (a token added by hand in Figma) is left out and reported.
+// split: "all" for one AppearanceColors.kt with the class and every value; "perTheme" for AppearanceColors.kt
+// with the class only, plus one file per theme with its values.
+export function appearanceKotlinFiles(
+  data: AppearanceExport, split: "all" | "perTheme", packageName: string,
+): { files: ExportFile[]; problems: string[] } {
+  const problems: string[] = [];
+  const pkg = kotlinPackage(packageName, problems);
+  const themes = Object.keys(data.themes);
+  const sets = themes.flatMap((t) => Object.values(data.themes[t].appearances).map((tokens) => Object.keys(tokens)));
+  if (sets.length === 0) return { files: [], problems };
+
+  // The properties: tokens present in every theme and appearance, in the export's (alphabetical) order.
+  const everyName = [...new Set(sets.flat())];
+  const properties = everyName.filter((name) => {
+    if (!/^[a-z][A-Za-z0-9]*$/.test(name) || KOTLIN_KEYWORDS.has(name)) {
+      problems.push(`${name} is not a valid Kotlin property name, so it was left out of the Kotlin file.`);
+      return false;
+    }
+    if (!sets.every((names) => names.includes(name))) {
+      problems.push(`${name} is missing in at least one theme or appearance, so it was left out of the Kotlin file.`);
+      return false;
+    }
+    return true;
+  });
+
+  const header = (imports: string[]): string => `// Generated by the Tokenseed Figma plugin from the Appearance variables. Do not edit by hand.\n` +
+    `package ${pkg}\n\n${imports.map((i) => `import ${i}\n`).join("")}\n`;
+  const classText = `// One Color per Appearance token. Each theme and appearance is a value of this class.\n@Immutable\n` +
+    `data class ${APPEARANCE_CLASS}(\n${properties.map((p) => `    val ${p}: Color,`).join("\n")}\n)\n`;
+  const usedNames = new Set<string>();
+  // One "val ...AppearanceColors = AppearanceColors(...)" per appearance of this theme.
+  const valuesOf = (theme: string): string => Object.entries(data.themes[theme].appearances).map(([mode, tokens]) => {
+    const base = `${kotlinWord(theme)}${kotlinWord(mode)}`;
+    let name = `${base}${APPEARANCE_CLASS}`;
+    if (!/^[A-Za-z]/.test(name)) name = `Theme${name}`;
+    for (let n = 2; usedNames.has(name); n++) name = `${base}${n}${APPEARANCE_CLASS}`;
+    usedNames.add(name);
+    return `// ${theme}, ${mode}\nval ${name} = ${APPEARANCE_CLASS}(\n${properties.map((p) => `    ${p} = ${kotlinColor(tokens[p])},`).join("\n")}\n)\n`;
+  }).join("\n");
+
+  const classImports = ["androidx.compose.runtime.Immutable", "androidx.compose.ui.graphics.Color"];
+  const files: ExportFile[] = split === "all"
+    ? [{ fileName: `${APPEARANCE_CLASS}.kt`, text: header(classImports) + classText + "\n" + themes.map(valuesOf).join("\n") }]
+    : [
+      { fileName: `${APPEARANCE_CLASS}.kt`, text: header(classImports) + classText },
+      ...themes.map((t) => ({ fileName: `${kotlinWord(t) || "Theme"}${APPEARANCE_CLASS}.kt`, text: header(["androidx.compose.ui.graphics.Color"]) + valuesOf(t) })),
+    ];
+  uniqueKotlinFileNames(files);
   return { files, problems };
 }

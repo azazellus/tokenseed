@@ -638,7 +638,7 @@ Their `softest`, `softer`, and `soft` backgrounds follow the dark canvas like th
 | color/border/brand/default | color/brand/alpha/a36 | color/brand/alpha/a36 |
 | color/border/brand/strong | color/brand/400 | color/brand/400 |
 | color/border/danger | color/danger/300 | color/danger/500 |
-| color/border/default | color/neutral/alpha/black/a24 | color/neutral/alpha/white/a16 |
+| color/border/default | color/neutral/alpha/black/a16 | color/neutral/alpha/white/a16 |
 | color/border/disabled | color/neutral/alpha/black/a12 | color/neutral/alpha/white/a08 |
 | color/border/focus | color/brand/500 | color/brand/400 |
 | color/border/info | color/info/300 | color/info/500 |
@@ -1264,6 +1264,7 @@ Both JSON exports use the same structure:
 | Export | One file | One file per theme |
 |---|---|---|
 | Appearance JSON | `appearance-tokens.json` | `appearance-tokens-{theme}.json`, such as `appearance-tokens-main-theme.json` |
+| Appearance Kotlin | `AppearanceColors.kt` | `AppearanceColors.kt` with the class only, plus `{Theme}AppearanceColors.kt`, such as `MainThemeAppearanceColors.kt` |
 | ColorScheme JSON | `colorscheme-tokens.json` | `colorscheme-tokens-{theme}.json` |
 | ColorScheme Kotlin | `ColorSchemes.kt` | `{Theme}ColorScheme.kt`, such as `MainThemeColorScheme.kt` |
 
@@ -1273,6 +1274,15 @@ Both JSON exports use the same structure:
 - The value uses `darkColorScheme(...)` when the appearance's `surface` color is dark (WCAG relative luminance below 0.18), and `lightColorScheme(...)` otherwise. So a Dark-based extra appearance gets a dark scheme.
 - Each role is written as `role = Color(0xAARRGGBB)`. Compose puts the alpha first, so `#RRGGBB` becomes `0xFFRRGGBB` and `#RRGGBBAA` becomes `0xAARRGGBB`.
 - A role that is not in `colorScheme.tokens` (one added by hand in Figma) would not compile. It is left out and listed as a problem.
+
+**Appearance tokens (Kotlin).** A Kotlin file for Jetpack Compose, in the package the user types, with the same default and the same rule for an invalid package name as the ColorScheme Kotlin.
+
+- Token names are camelCase, because Kotlin property names are. The user can still leave out the leading `color`: `color/bg/brand/bold` becomes `bgBrandBold`, or `colorBgBrandBold` with it.
+- One class, `AppearanceColors`, has one `Color` property per Appearance token, sorted by name.
+- Each theme and appearance becomes one value of that class, named after both: Main theme in Light becomes `MainThemeLightAppearanceColors`.
+- Colors are written as in the ColorScheme Kotlin: `Color(0xAARRGGBB)`.
+- Every value must give every property. A token missing from any theme or appearance, because it could not be resolved, is left out of all of them and listed as a problem.
+- A token name that is not a valid Kotlin property name (one added by hand in Figma) is left out and listed as a problem.
 
 #### 6.1.3 Text styles
 

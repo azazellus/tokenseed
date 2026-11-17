@@ -10,7 +10,7 @@ import { chosenPlatforms, skippedCollections, tableSourceAfterWrite } from "./se
 import { fileHasTokens, inputsToShow, readSavedInputs } from "./saved-inputs.ts";
 import { clampWindowSize, WINDOW_SIZE } from "./window-size.ts";
 import { buildTables } from "./tables.ts";
-import { buildAppearanceExport, buildColorSchemeExport, exportFiles, kotlinFiles } from "./export.ts";
+import { appearanceKotlinFiles, buildAppearanceExport, buildColorSchemeExport, exportFiles, kotlinFiles } from "./export.ts";
 import type { ExportOptions } from "./export.ts";
 import type { TableSource } from "./tables.ts";
 import { drawColorTables } from "./tables-figma.ts";
@@ -304,8 +304,16 @@ async function exportTokens(options: ExportChoice): Promise<void> {
       }
       return;
     }
-    const { data, problems } = buildAppearanceExport(source, options);
-    const files = Object.keys(data.themes).length > 0 ? exportFiles(data, split) : [];
+    // Kotlin property names are camelCase, whatever naming the window shows (section 6.1.2).
+    const kotlin = options.format === "kotlin";
+    const { data, problems } = buildAppearanceExport(source, kotlin ? { ...options, naming: "camel" } : options);
+    const ok = Object.keys(data.themes).length > 0;
+    if (kotlin) {
+      const k = ok ? appearanceKotlinFiles(data, split, options.kotlinPackage ?? "") : { files: [], problems: [] };
+      figma.ui.postMessage({ type: "export-result", data, files: k.files, problems: [...problems, ...k.problems] });
+      return;
+    }
+    const files = ok ? exportFiles(data, split) : [];
     figma.ui.postMessage({ type: "export-result", data, files, problems });
   } catch (e) {
     sendFailure("export", e);

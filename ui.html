@@ -28,7 +28,7 @@
     --track: #dbdae4;     /* color/bg/neutral/soft: the slider's line */
     --tab-track: #f4f3f9; /* color/elevation/surface/overlay/deep: behind the three tabs */
     --glow: #e2e5ff;      /* the center of the soft light behind the logo on the landing page */
-    --border: rgba(0, 0, 0, 0.24);         /* color/border/default */
+    --border: rgba(0, 0, 0, 0.16);         /* color/border/default */
     --brand-line: rgba(85, 58, 223, 0.36); /* color/border/brand/default: "Add …" sections */
     --accent: #553adf;    /* brand text and icons, selected weight chips */
     --action: #553adf;    /* main button, ticked checkboxes, slider thumb */
@@ -485,10 +485,18 @@
   <div class="export-grid">
     <div class="panel export" data-collection="appearance">
       <div class="panel-title"><span class="name">Appearance</span></div>
-      <p class="about">JSON for developers: every Appearance token as HEX, for every theme and appearance, read from the variables in this file.</p>
+      <p class="about" id="appearanceAbout"></p>
       <div class="options">
+        <div class="option-row"><span>Format</span>
+          <div class="picker"><span class="text" id="appearanceFormatText"></span><span class="icon i16" data-icon="arrow"></span>
+            <select id="appearanceFormat" aria-label="Format">
+              <option value="json">JSON</option>
+              <option value="kotlin">Kotlin (Jetpack Compose)</option>
+            </select></div></div>
         <label class="check-row"><input type="checkbox" class="cb" id="keepColor" checked> Keep “color” at the beginning</label>
-        <div class="option-row"><span>Naming convention</span>
+        <div class="option-row appearance-kotlin-only"><span>Kotlin package</span>
+          <input type="text" class="field" id="appearanceKotlinPackage" value="com.example.ui.theme" aria-label="Kotlin package" spellcheck="false"></div>
+        <div class="option-row appearance-json-only"><span>Naming convention</span>
           <div class="picker"><span class="text" id="namingText"></span><span class="icon i16" data-icon="arrow"></span>
             <select id="naming" aria-label="Naming convention">
               <option value="dot">dot.case</option>
@@ -503,7 +511,7 @@
               <option value="perTheme">One file per theme</option>
             </select></div></div>
       </div>
-      <button type="button" class="pill primary" id="export"><span class="icon i20" data-icon="openInNew"></span>Export JSON</button>
+      <button type="button" class="pill primary" id="export"><span class="icon i20" data-icon="openInNew"></span><span id="exportLabel">Export JSON</span></button>
     </div>
     <div class="panel export" data-collection="colorScheme">
       <div class="panel-title"><span class="name">ColorScheme (Android)</span></div>
@@ -542,7 +550,7 @@
         <button type="button" class="pill" id="downloadAll">Download all files</button>
         <button type="button" class="pill" id="copyExport">Copy</button>
       </div>
-      <textarea id="exportOutput" readonly aria-label="Exported JSON"></textarea>
+      <textarea id="exportOutput" readonly aria-label="Exported file"></textarea>
     </div>
   </div>
 </section>
@@ -1471,7 +1479,7 @@
   };
 
   // ---------- Developer export ----------
-  // The options of one export panel: "appearance" (JSON) or "colorScheme" (JSON or Kotlin).
+  // The options of one export panel: "appearance" or "colorScheme", each as JSON or Kotlin.
   const exportOptions = (collection) => collection === "colorScheme"
     ? {
       collection, keepColorPrefix: true, naming: "dot",
@@ -1482,7 +1490,9 @@
     : {
       collection,
       keepColorPrefix: document.getElementById("keepColor").checked,
-      naming: document.getElementById("naming").value,
+      naming: document.getElementById("naming").value, // Kotlin always uses camelCase (the plugin sets it)
+      format: document.getElementById("appearanceFormat").value,
+      kotlinPackage: document.getElementById("appearanceKotlinPackage").value,
       split: document.getElementById("split").value,
     };
   // The text of the selected option, shown in a dropdown's box.
@@ -1492,6 +1502,15 @@
     document.getElementById("splitText").textContent = pickedText("split");
     document.getElementById("formatText").textContent = pickedText("exportFormat");
     document.getElementById("schemeSplitText").textContent = pickedText("schemeSplit");
+    document.getElementById("appearanceFormatText").textContent = pickedText("appearanceFormat");
+    // Appearance: Kotlin asks for a package and always uses camelCase names, so the naming choice is JSON only.
+    const appKotlin = document.getElementById("appearanceFormat").value === "kotlin";
+    for (const el of document.querySelectorAll(".appearance-kotlin-only")) el.classList.toggle("hidden", !appKotlin);
+    for (const el of document.querySelectorAll(".appearance-json-only")) el.classList.toggle("hidden", appKotlin);
+    document.getElementById("appearanceAbout").textContent = appKotlin
+      ? "Kotlin for Android developers: an AppearanceColors class with every Appearance token, and one value of it for every theme and appearance, read from the variables in this file."
+      : "JSON for developers: every Appearance token as HEX, for every theme and appearance, read from the variables in this file.";
+    document.getElementById("exportLabel").textContent = appKotlin ? "Export Kotlin" : "Export JSON";
     // ColorScheme: the package applies to Kotlin only; the text and button follow the format.
     const kotlin = document.getElementById("exportFormat").value === "kotlin";
     for (const el of document.querySelectorAll(".kotlin-only")) el.classList.toggle("hidden", !kotlin);
@@ -1500,7 +1519,7 @@
       : "JSON for Android developers: every ColorScheme role as HEX, with the Compose names, for every theme and appearance, read from the variables in this file.";
     document.getElementById("exportSchemeLabel").textContent = kotlin ? "Export Kotlin" : "Export JSON";
   }
-  for (const id of ["naming", "split", "exportFormat", "schemeSplit"]) document.getElementById(id).onchange = showNaming;
+  for (const id of ["naming", "split", "exportFormat", "schemeSplit", "appearanceFormat"]) document.getElementById(id).onchange = showNaming;
   showNaming();
   function startExport(collection) {
     const status = document.getElementById("exportStatus");
