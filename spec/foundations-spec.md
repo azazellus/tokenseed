@@ -107,7 +107,7 @@ Every palette contains exactly 13 steps, from `950` (darkest) to `50` (lightest)
 
 Steps are not evenly spaced. The light and dark ends are denser, to give finer control where small changes matter most.
 
-Both curves that shape a palette, the target lightness (section 1.1.4) and the chroma multipliers (section 5.5), are smooth curves across the steps, never straight lines. The lightness curve eases in and out: the gap between neighbouring steps rises steadily from the light end to its largest around step 400, then falls steadily toward the dark end. It never goes flat, so the lightest and darkest steps stay distinct (Dark mode uses the darkest steps for the canvas and the surfaces above it). The chroma multipliers form a smooth bell that peaks at step 400.
+Both curves that shape a brand palette, the target lightness (section 1.1.4) and the chroma multipliers (section 5.5), are smooth curves across the steps, never straight lines. The lightness curve eases in and out: the gap between neighbouring steps rises steadily from the light end to its largest around step 400, then falls steadily toward the dark end. It never goes flat, so the lightest and darkest steps stay distinct (Dark mode uses the darkest steps for the canvas and the surfaces above it). The chroma multipliers form a smooth bell that peaks at step 400. Brand palettes use the multipliers. Status and custom palettes take their chroma from a table tuned by eye for each hue (section 5.5), so their chroma curves have the shape each hue needs.
 
 #### 1.1.4 Luminance targets
 
@@ -1033,7 +1033,7 @@ This procedure applies to every palette and uses one order everywhere:
    - **Brand color on its own step 100.** Only the same-palette pairing (500 on its own 100) can still fail at the anchor. The palette's step 100 then gets lighter instead, with the same search: 0.001 per candidate, at most 0.150 away from its starting L, and strictly below the L of the next lighter step. Its chroma and hue stay the same, and each candidate is gamut-clamped. If no candidate passes, generation stops as `contrast_minimum`.
 3. **Adjust chroma second.** If no lightness candidate passes, search chroma at the step's current L and hue, in 0.001 steps:
    - First, descending from the current chroma to 0.01.
-   - Then, ascending from the current chroma to the maximum in-gamut chroma at that L and hue, or to the step's chroma ceiling (section 5.5) when it is lower.
+   - Then, ascending from the current chroma to the maximum in-gamut chroma at that L and hue, or to a lower limit when the step has one: the chroma ceiling for brand palettes, and the step's chroma from the table for status and custom palettes (section 5.5).
    - Accept the first candidate whose contrast meets the threshold.
    - The anchor is never changed.
 4. **Re-validate.** One adjustment is one accepted candidate in step 2 or 3. After each adjustment, recalculate the pairing it changed. If the palette needs more than 50 adjustments, stop and report a failure. Only foreground steps are adjusted, apart from the brand color's own step 100 (step 2), and no foreground step is used as a background (section 1.1.5). Step 500 is the foreground in two pairings, and both of its backgrounds (neutral step 100 and the palette's own step 100) are lighter than it. Darkening step 500 for one pairing therefore never lowers the contrast of the other.
@@ -1086,18 +1086,33 @@ Note: The dark multipliers are low, so dividing by them would make the steps lig
 
 #### Chroma (status and custom palettes)
 
-1. **Reference chroma.** `C_400` is fixed at 0.16 for every status and custom palette. The supplied color's chroma is not used.
-2. **Yellow boost.** Yellow hues can show much more chroma at light steps than other hues. Multiply `C_400` by `1 + 0.6 × w`, where `w` depends on the palette's OKLCH hue: 1 from 85° to 105°, falling linearly to 0 at 65° and at 125°, and 0 outside. For example, a hue of 95° uses 0.256 and a hue of 75° uses 0.208.
-3. **Saturation.** Multiply `C_400` by the factor of the theme's saturation level (section 5.1). The chroma ceilings below are multiplied by the same factor.
+1. **Chroma table.** Each step's chroma comes from a table, not from the supplied color. The table gives, for 12 OKLCH hues, each step's chroma as a percent of the largest chroma inside sRGB at the step's target L (section 1.1.4) and that hue. A row's chroma at a step is its percent × that largest chroma.
+
+| Hue | 50 | 100 | 150 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 850 | 900 | 950 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 27° | 98 | 98 | 100 | 100 | 91 | 63 | 70 | 73 | 66 | 53 | 36 | 30 | 26 |
+| 50° | 98 | 98 | 100 | 100 | 84 | 92 | 100 | 100 | 94 | 79 | 55 | 47 | 45 |
+| 90° | 78 | 82 | 82 | 83 | 93 | 99 | 100 | 98 | 94 | 98 | 98 | 98 | 92 |
+| 125° | 52 | 48 | 43 | 58 | 76 | 98 | 100 | 98 | 91 | 80 | 58 | 50 | 48 |
+| 145° | 48 | 52 | 52 | 48 | 57 | 78 | 91 | 95 | 86 | 67 | 46 | 39 | 38 |
+| 160° | 48 | 60 | 62 | 62 | 72 | 82 | 91 | 98 | 91 | 89 | 64 | 56 | 53 |
+| 185° | 58 | 62 | 58 | 62 | 78 | 90 | 97 | 98 | 92 | 98 | 81 | 72 | 68 |
+| 210° | 68 | 70 | 72 | 68 | 82 | 98 | 100 | 98 | 92 | 98 | 83 | 75 | 71 |
+| 255° | 83 | 83 | 87 | 100 | 98 | 79 | 88 | 91 | 82 | 64 | 44 | 37 | 33 |
+| 280° | 98 | 98 | 100 | 100 | 95 | 79 | 56 | 51 | 46 | 36 | 25 | 20 | 18 |
+| 310° | 98 | 98 | 100 | 98 | 80 | 59 | 56 | 58 | 53 | 43 | 30 | 24 | 22 |
+| 350° | 98 | 98 | 100 | 99 | 77 | 58 | 68 | 71 | 65 | 51 | 35 | 29 | 26 |
+
+2. **Hues between two rows.** A palette whose hue is between two rows takes, at every step, the linear blend of the two rows' chroma, by hue distance. The blend goes around the circle: a hue of 0° is between the 350° and 27° rows. The chroma is blended, not the percents, because the sRGB limit changes a lot between some rows, such as the greens. Blending percents there would make a hue between two rows more saturated than both. The result is never above the largest chroma inside sRGB at the palette's own hue and the step's target L.
+3. **Saturation.** Multiply the chroma by the factor of the theme's saturation level (section 5.1). Level 5 is the table itself. A higher level never goes above the largest chroma inside sRGB at that L and hue. This limit is part of the rule, so it is not reported as a gamut clamp.
 
 | Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | Factor | 0.28 | 0.46 | 0.64 | 0.82 | 1 | 1.16 | 1.32 | 1.48 | 1.64 | 1.8 |
 
-4. **Generate chroma.** For each step, `C_tone = C_400 × m_tone`, with the multipliers above.
-5. Then apply the chroma ceiling, the minimum chroma, and the gamut clamp, as for brand palettes (steps 4 to 6 above).
+4. Then apply the minimum chroma (0.01). Status and custom palettes have no chroma ceiling and no chroma multipliers. The contrast adjustment (section 5.4) never raises a step's chroma above its value from steps 1 to 3.
 
-The values are in `tokens.json`, under `primitives.hueOnlyPalette` and `primitives.chromaCeiling`.
+The values are in `tokens.json`, under `primitives.hueOnlyPalette`.
 
 #### Hue
 

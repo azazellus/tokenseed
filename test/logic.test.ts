@@ -1,8 +1,8 @@
 // Logic tests. Run with: node --experimental-strip-types test/logic.test.ts
 import assert from "node:assert/strict";
 import { hexToOklch, oklchToHex, contrast, inGamut, maxChroma } from "../src/color.ts";
-import { ANCHOR_CHROMA_REFERENCE, MAX_ADJUSTMENTS, MIN_CHROMA, CHROMA_MULT, buildPalette, STEPS, CONTRAST_PAIRS, pairBackgroundHex, buildHuePalette, closestStep, yellowFactor,
-  SATURATION_FACTORS, DEFAULT_SATURATION, CHROMA_CEILING, REFERENCE_C400, YELLOW_BOOST, SHIFT_NOTICE_DISTANCE, placeAnchor, TARGET_L, RESPACE_FROM_500_TO_400,
+import { ANCHOR_CHROMA_REFERENCE, MAX_ADJUSTMENTS, MIN_CHROMA, CHROMA_MULT, buildPalette, STEPS, CONTRAST_PAIRS, pairBackgroundHex, buildHuePalette, closestStep, tableChroma,
+  SATURATION_FACTORS, DEFAULT_SATURATION, CHROMA_CEILING, CHROMA_TABLE, SHIFT_NOTICE_DISTANCE, placeAnchor, TARGET_L, RESPACE_FROM_500_TO_400,
   buildNeutralPalette, NEUTRAL_CHROMA, NEUTRAL_FADE, GRAY_HEX, neutralOf } from "../src/palette.ts";
 import { validateHex } from "../src/validate.ts";
 import { assignPaletteNames, hslHue, hueDistance, paletteRenames } from "../src/naming.ts";
@@ -776,14 +776,25 @@ assert.deepEqual(sameBrand.variables.find((v) => v.name === "color/brand/500")!.
 // 15. Palette chroma (sections 5.2, 5.3, 5.5). The constants in palette.ts must match tokens.json.
 assert.deepEqual(CHROMA_CEILING, Object.fromEntries(Object.entries(spec.primitives.chromaCeiling.steps).map(([k, v]) => [Number(k), v])));
 const hop = spec.primitives.hueOnlyPalette;
-assert.equal(REFERENCE_C400, hop.referenceChroma400);
-assert.deepEqual(YELLOW_BOOST, { factor: hop.yellowBoost.factor, zeroBelow: hop.yellowBoost.zeroBelow, fullFrom: hop.yellowBoost.fullFrom, fullTo: hop.yellowBoost.fullTo, zeroAbove: hop.yellowBoost.zeroAbove });
 assert.equal(SHIFT_NOTICE_DISTANCE, hop.shiftNotice.maxDistance);
-// The yellow factor: full from 85° to 105°, fading to none at 65° and 125°.
-assert.equal(yellowFactor(95), 1.6);
-assert.ok(Math.abs(yellowFactor(75) - 1.3) < 1e-9);
-assert.equal(yellowFactor(50), 1);
-assert.equal(yellowFactor(130), 1);
+// The chroma table: a row's own hue gives its percent of the sRGB limit; a hue between two rows blends the
+// two rows' chroma by distance, around the circle between the last row (350°) and the first (27°); never past sRGB.
+const rowC = (h: number, s: number) => (CHROMA_TABLE[h][s] / 100) * maxChroma(TARGET_L[s], h);
+assert.ok(Math.abs(tableChroma(145, 400) - rowC(145, 400)) < 1e-12);
+assert.ok(Math.abs(tableChroma(505, 400) - rowC(145, 400)) < 1e-12); // 505° is 145°
+assert.ok(Math.abs(tableChroma(152.5, 500) - Math.min((rowC(145, 500) + rowC(160, 500)) / 2, maxChroma(TARGET_L[500], 152.5))) < 1e-12);
+const wrapT = (360 - 350) / (360 - 350 + 27); // 0° is 10° past 350° on the 37° way to 27°
+assert.ok(Math.abs(tableChroma(0, 600) - Math.min(rowC(350, 600) * (1 - wrapT) + rowC(27, 600) * wrapT, maxChroma(TARGET_L[600], 0))) < 1e-12);
+assert.ok(Math.abs(tableChroma(359.9, 600) - tableChroma(-0.1, 600)) < 1e-12);
+for (let h = 0; h < 360; h += 2.5) for (const s of STEPS) {
+  const C = tableChroma(h, s);
+  assert.ok(C >= 0 && C <= maxChroma(TARGET_L[s], h) + 1e-12, `${h}° ${s}: ${C}`);
+}
+// Between two rows, the chroma stays between the two rows' chroma: no bump, even where the sRGB limit changes a lot.
+for (let h = 126; h < 145; h += 1) for (const s of STEPS) {
+  const a = rowC(125, s), b = rowC(145, s);
+  assert.ok(tableChroma(h, s) <= Math.max(a, b) + 1e-12, `${h}° ${s}: bump`);
+}
 // The brand keeps its exact HEX at its anchor, even when it is above a ceiling; other steps stay under it.
 const vivid = buildPalette("Red", "#E53935"); // anchor 400, chroma 0.209
 assert.equal(vivid.anchor, 400);
@@ -796,22 +807,29 @@ for (const s of STEPS) {
 const red500 = buildPalette("Red", "#C62828");
 assert.equal(red500.anchor, 500);
 assert.ok(hexToOklch(red500.steps[400].hex).C <= 0.18 + 0.005);
-// Status and custom palettes use only the hue: no anchor, target L, the fixed curve, and no step above a ceiling.
+// Status and custom palettes use only the hue: no anchor, target L, chroma from the table, and the contrast
+// adjustment never raises a step above its table chroma.
 for (const hex of ["#E74B3C", "#D62828", "#48A13F", "#4785E6", "#F4C430", "#39FF14", "#8A9A7B", "#FFDDC3"]) {
   const p = buildHuePalette("X", hex);
+  const H = p.steps[500].lch.H;
   assert.equal(p.anchor, -1);
   assert.equal(p.errors.length, 0, `${hex}: ${p.errors.map((e) => e.message).join("; ")}`);
   for (const s of STEPS) {
-    const cap = CHROMA_CEILING[s];
-    if (cap) assert.ok(p.steps[s].lch.C <= cap + 1e-9, `${hex} step ${s} above its ceiling`);
+    const fromTable = Math.max(tableChroma(H, s), MIN_CHROMA);
+    assert.ok(Math.abs(p.chromaLimit![s] - fromTable) < 1e-9, `${hex} step ${s} limit`);
+    assert.ok(p.steps[s].lch.C <= fromTable + 1e-9, `${hex} step ${s} above its table chroma`);
+    // A step the contrast adjustment left at its target L keeps exactly its table chroma.
+    if (Math.abs(p.steps[s].lch.L - TARGET_L[s]) < 1e-9) assert.ok(Math.abs(p.steps[s].lch.C - fromTable) < 1e-9, `${hex} step ${s} chroma`);
   }
+  assert.ok(!p.warnings.some((w) => w.check === "gamut_clamp"), `${hex}: the table never needs a clamp`);
 }
 // The same hue gives the same palette, whatever the lightness and chroma of the pick.
 const hueOf = (hex: string) => Math.round(hexToOklch(hex).H * 10) / 10;
 assert.equal(hueOf("#FF0000"), hueOf("#FF0000"));
 assert.deepEqual(buildHuePalette("X", "#FF0000").steps, buildHuePalette("X", "#FF0000").steps);
-// Yellow gets more chroma in the light steps than the plain curve would give (0.16 × 0.64 at step 200).
-assert.ok(buildHuePalette("X", "#F4C430").steps[200].lch.C > 0.16 * 0.64 + 0.03);
+// The table gives yellow more chroma than green in the light steps, and green more than yellow in the middle ones.
+assert.ok(buildHuePalette("X", "#F4C430").steps[150].lch.C > buildHuePalette("X", "#48A13F").steps[150].lch.C);
+assert.ok(buildHuePalette("X", "#48A13F").steps[600].lch.C > buildHuePalette("X", "#F4C430").steps[600].lch.C);
 // Shift notice: a default status color has a close step; a neon pick does not.
 assert.ok(closestStep(buildHuePalette("X", "#48A13F"), "#48A13F").distance < SHIFT_NOTICE_DISTANCE);
 assert.ok(closestStep(buildHuePalette("X", "#39FF14"), "#39FF14").distance > SHIFT_NOTICE_DISTANCE);
@@ -1361,11 +1379,15 @@ assert.equal(SATURATION_FACTORS[DEFAULT_SATURATION], 1);
   // Level 5 is the usual palette, and a missing level is level 5.
   assert.deepEqual(hexes(buildHuePalette("x", "#E74B3C", [GRAY_HEX], 5).steps), hexes(buildHuePalette("x", "#E74B3C").steps));
   assert.deepEqual(hexes(stepsOf(named(theme(undefined)), "danger")), hexes(stepsOf(named(theme(5)), "danger")));
-  // Lower levels are softer and higher levels stronger, with the ceilings scaled too.
+  // Lower levels are softer and higher levels stronger: the table's chroma times the level's factor,
+  // stopping at the sRGB limit at high levels, with no clamp warning.
   const c400 = (level: number) => buildHuePalette("x", "#E74B3C", [GRAY_HEX], level).steps[400].lch.C;
   assert.ok(c400(1) < c400(5) && c400(5) < c400(10));
-  assert.ok(Math.abs(c400(1) - REFERENCE_C400 * 0.28) < 1e-9);
-  assert.ok(buildHuePalette("x", "#E74B3C", [GRAY_HEX], 10).steps[400].lch.C > CHROMA_CEILING[400]);
+  const lim = (level: number) => buildHuePalette("x", "#E74B3C", [GRAY_HEX], level).chromaLimit!;
+  assert.ok(Math.abs(lim(1)[400] - lim(5)[400] * 0.28) < 1e-9);
+  const strong = buildHuePalette("x", "#E74B3C", [GRAY_HEX], 10);
+  for (const s of STEPS) assert.ok(strong.chromaLimit![s] <= maxChroma(TARGET_L[s], strong.steps[500].lch.H) + 1e-9, `level 10 step ${s} past sRGB`);
+  assert.ok(!strong.warnings.some((w) => w.check === "gamut_clamp"));
   // Brand and neutral palettes never change.
   for (const level of [1, 10]) {
     assert.deepEqual(hexes(stepsOf(named(theme(level)), "brand")), hexes(stepsOf(named(theme(5)), "brand")));
@@ -1399,8 +1421,9 @@ assert.deepEqual(clampWindowSize(Number.NaN, Infinity), { width: WINDOW_SIZE.def
   assert.deepEqual(GRAY_HEX, p.neutralPalette.steps);
   assert.equal(MIN_CHROMA, p.minChroma);
   assert.equal(MAX_ADJUSTMENTS, spec.validation.maxAdjustmentsPerPalette);
-  assert.equal(REFERENCE_C400, p.hueOnlyPalette.referenceChroma400);
-  assert.deepEqual(YELLOW_BOOST, withoutDescription(p.hueOnlyPalette.yellowBoost));
+  assert.deepEqual(CHROMA_TABLE, Object.fromEntries(Object.entries(p.hueOnlyPalette.chromaTable.percent as Record<string, Record<string, number>>)
+    .map(([h, row]) => [Number(h), Object.fromEntries(Object.entries(row).map(([k, v]) => [Number(k), v]))])));
+  for (const row of Object.values(CHROMA_TABLE)) assert.deepEqual(Object.keys(row).map(Number).sort((a, b) => a - b), [...STEPS].sort((a, b) => a - b));
   assert.equal(SHIFT_NOTICE_DISTANCE, p.hueOnlyPalette.shiftNotice.maxDistance);
   assert.equal(DEFAULT_SATURATION, spec.inputs.saturation.default);
   assert.equal(NEUTRAL_CHROMA, p.neutralTint.chroma);

@@ -22,7 +22,7 @@
 
   // spec/tokens.json
   var tokens_default = {
-    version: "1.38.0",
+    version: "1.39.0",
     description: "Source of truth for the design foundations specification (foundations-spec.md). Palette HEX values are user inputs and palette names come from primitives.paletteNaming; this file defines the rules, inputs, Theme mappings, alpha tokens, Appearance mappings, and ColorScheme mappings.",
     collections: {
       Primitives: { modes: ["Default"] },
@@ -153,20 +153,28 @@
         }
       },
       chromaCeiling: {
-        description: "The highest OKLCH chroma a generated step may have, for every hue and every palette. Steps not listed have no ceiling. The brand anchor (the brand HEX itself) and the steps re-spaced around a moved anchor (brandAnchor.respace) are exempt. The contrast adjustment (section 5.4) never raises chroma above it.",
+        description: "The highest OKLCH chroma a generated step of a brand palette may have, for every hue. Status and custom palettes use hueOnlyPalette.chromaTable instead. Steps not listed have no ceiling. The brand anchor (the brand HEX itself) and the steps re-spaced around a moved anchor (brandAnchor.respace) are exempt. The contrast adjustment (section 5.4) never raises chroma above it.",
         steps: { "300": 0.14, "400": 0.18 }
       },
       hueOnlyPalette: {
-        description: "Status and custom palettes take only the hue of the supplied HEX (section 5.3). They have no anchor step. Each step uses its target L (targetL) and the chroma referenceChroma400 \xD7 chromaMultiplier[step] \xD7 the yellow factor \xD7 the saturation factor, then chromaCeiling \xD7 the saturation factor, minChroma, the gamut clamp and the contrast adjustment.",
-        referenceChroma400: 0.16,
+        description: "Status and custom palettes take only the hue of the supplied HEX (section 5.3). They have no anchor step. Each step uses its target L (targetL) and the chroma chromaTable percent \xD7 the largest in-sRGB chroma at that L and hue \xD7 the saturation factor, then minChroma, the gamut clamp and the contrast adjustment. They have no chroma ceiling (chromaCeiling is for brand palettes).",
         saturationFactors: { "1": 0.28, "2": 0.46, "3": 0.64, "4": 0.82, "5": 1, "6": 1.16, "7": 1.32, "8": 1.48, "9": 1.64, "10": 1.8 },
-        yellowBoost: {
-          description: "Yellow hues can show much more chroma at light steps than other hues. The yellow factor is 1 + (factor - 1) \xD7 w, where w is 1 for an OKLCH hue from fullFrom to fullTo, falls linearly to 0 at zeroBelow and zeroAbove, and is 0 outside them.",
-          factor: 1.6,
-          zeroBelow: 65,
-          fullFrom: 85,
-          fullTo: 105,
-          zeroAbove: 125
+        chromaTable: {
+          description: "Each step's chroma as a percent of the largest chroma inside sRGB at the step's target L and the palette's OKLCH hue. Rows are OKLCH hues in degrees. A hue between two rows takes, at every step, the linear blend of the two rows by hue distance, going around the circle (between 350 and 27 through 0). The contrast adjustment (section 5.4) never raises a step's chroma above its value from this table.",
+          percent: {
+            "27": { "50": 98, "100": 98, "150": 100, "200": 100, "300": 91, "400": 63, "500": 70, "600": 73, "700": 66, "800": 53, "850": 36, "900": 30, "950": 26 },
+            "50": { "50": 98, "100": 98, "150": 100, "200": 100, "300": 84, "400": 92, "500": 100, "600": 100, "700": 94, "800": 79, "850": 55, "900": 47, "950": 45 },
+            "90": { "50": 78, "100": 82, "150": 82, "200": 83, "300": 93, "400": 99, "500": 100, "600": 98, "700": 94, "800": 98, "850": 98, "900": 98, "950": 92 },
+            "125": { "50": 52, "100": 48, "150": 43, "200": 58, "300": 76, "400": 98, "500": 100, "600": 98, "700": 91, "800": 80, "850": 58, "900": 50, "950": 48 },
+            "145": { "50": 48, "100": 52, "150": 52, "200": 48, "300": 57, "400": 78, "500": 91, "600": 95, "700": 86, "800": 67, "850": 46, "900": 39, "950": 38 },
+            "160": { "50": 48, "100": 60, "150": 62, "200": 62, "300": 72, "400": 82, "500": 91, "600": 98, "700": 91, "800": 89, "850": 64, "900": 56, "950": 53 },
+            "185": { "50": 58, "100": 62, "150": 58, "200": 62, "300": 78, "400": 90, "500": 97, "600": 98, "700": 92, "800": 98, "850": 81, "900": 72, "950": 68 },
+            "210": { "50": 68, "100": 70, "150": 72, "200": 68, "300": 82, "400": 98, "500": 100, "600": 98, "700": 92, "800": 98, "850": 83, "900": 75, "950": 71 },
+            "255": { "50": 83, "100": 83, "150": 87, "200": 100, "300": 98, "400": 79, "500": 88, "600": 91, "700": 82, "800": 64, "850": 44, "900": 37, "950": 33 },
+            "280": { "50": 98, "100": 98, "150": 100, "200": 100, "300": 95, "400": 79, "500": 56, "600": 51, "700": 46, "800": 36, "850": 25, "900": 20, "950": 18 },
+            "310": { "50": 98, "100": 98, "150": 100, "200": 98, "300": 80, "400": 59, "500": 56, "600": 58, "700": 53, "800": 43, "850": 30, "900": 24, "950": 22 },
+            "350": { "50": 98, "100": 98, "150": 100, "200": 99, "300": 77, "400": 58, "500": 68, "600": 71, "700": 65, "800": 51, "850": 35, "900": 29, "950": 26 }
+          }
         },
         shiftNotice: {
           description: "When no step of the palette a status or custom color uses is within maxDistance of the supplied HEX (Euclidean distance in OKLab), the color is reported as hue_only_shift (warning), naming the closest step. The plugin form shows the same notice next to the color.",
@@ -1252,10 +1260,22 @@
   var ANCHOR_CHROMA_REFERENCE = { 800: 0.38, 850: 0.32, 900: 0.28, 950: 0.27 };
   var MIN_CHROMA = 0.01;
   var CHROMA_CEILING = { 300: 0.14, 400: 0.18 };
-  var REFERENCE_C400 = 0.16;
   var SATURATION_FACTORS = { 1: 0.28, 2: 0.46, 3: 0.64, 4: 0.82, 5: 1, 6: 1.16, 7: 1.32, 8: 1.48, 9: 1.64, 10: 1.8 };
   var DEFAULT_SATURATION = 5;
-  var YELLOW_BOOST = { factor: 1.6, zeroBelow: 65, fullFrom: 85, fullTo: 105, zeroAbove: 125 };
+  var CHROMA_TABLE = {
+    27: { 50: 98, 100: 98, 150: 100, 200: 100, 300: 91, 400: 63, 500: 70, 600: 73, 700: 66, 800: 53, 850: 36, 900: 30, 950: 26 },
+    50: { 50: 98, 100: 98, 150: 100, 200: 100, 300: 84, 400: 92, 500: 100, 600: 100, 700: 94, 800: 79, 850: 55, 900: 47, 950: 45 },
+    90: { 50: 78, 100: 82, 150: 82, 200: 83, 300: 93, 400: 99, 500: 100, 600: 98, 700: 94, 800: 98, 850: 98, 900: 98, 950: 92 },
+    125: { 50: 52, 100: 48, 150: 43, 200: 58, 300: 76, 400: 98, 500: 100, 600: 98, 700: 91, 800: 80, 850: 58, 900: 50, 950: 48 },
+    145: { 50: 48, 100: 52, 150: 52, 200: 48, 300: 57, 400: 78, 500: 91, 600: 95, 700: 86, 800: 67, 850: 46, 900: 39, 950: 38 },
+    160: { 50: 48, 100: 60, 150: 62, 200: 62, 300: 72, 400: 82, 500: 91, 600: 98, 700: 91, 800: 89, 850: 64, 900: 56, 950: 53 },
+    185: { 50: 58, 100: 62, 150: 58, 200: 62, 300: 78, 400: 90, 500: 97, 600: 98, 700: 92, 800: 98, 850: 81, 900: 72, 950: 68 },
+    210: { 50: 68, 100: 70, 150: 72, 200: 68, 300: 82, 400: 98, 500: 100, 600: 98, 700: 92, 800: 98, 850: 83, 900: 75, 950: 71 },
+    255: { 50: 83, 100: 83, 150: 87, 200: 100, 300: 98, 400: 79, 500: 88, 600: 91, 700: 82, 800: 64, 850: 44, 900: 37, 950: 33 },
+    280: { 50: 98, 100: 98, 150: 100, 200: 100, 300: 95, 400: 79, 500: 56, 600: 51, 700: 46, 800: 36, 850: 25, 900: 20, 950: 18 },
+    310: { 50: 98, 100: 98, 150: 100, 200: 98, 300: 80, 400: 59, 500: 56, 600: 58, 700: 53, 800: 43, 850: 30, 900: 24, 950: 22 },
+    350: { 50: 98, 100: 98, 150: 100, 200: 99, 300: 77, 400: 58, 500: 68, 600: 71, 700: 65, 800: 51, 850: 35, 900: 29, 950: 26 }
+  };
   var SHIFT_NOTICE_DISTANCE = 0.06;
   var MAX_ADJUSTMENTS = 50;
   var RESPACE_FROM_500_TO_400 = { 300: 0.325, 200: 0.619, 150: 0.845 };
@@ -1339,7 +1359,7 @@
     p.steps[s] = { lch: clamped, hex: oklchToHex(clamped) };
   }
   function fixPair(p, pair, threshold, allowChroma) {
-    var _a, _b;
+    var _a;
     const s = pair.text;
     if (s === p.anchor) return false;
     const cur = p.steps[s].lch;
@@ -1360,7 +1380,8 @@
       }
     }
     if (allowChroma) {
-      const maxC = Math.min(maxChroma(cur.L, cur.H), ((_a = CHROMA_CEILING[s]) != null ? _a : Infinity) * ((_b = p.ceilingFactor) != null ? _b : 1));
+      const cap = p.chromaLimit ? p.chromaLimit[s] : (_a = CHROMA_CEILING[s]) != null ? _a : Infinity;
+      const maxC = Math.min(maxChroma(cur.L, cur.H), cap);
       const order = [];
       for (let C2 = r3(cur.C); C2 >= MIN_CHROMA - 1e-9; C2 = r3(C2 - SEARCH_STEP)) order.push(C2);
       for (let C2 = r3(cur.C + SEARCH_STEP); C2 <= maxC; C2 = r3(C2 + SEARCH_STEP)) order.push(C2);
@@ -1476,19 +1497,30 @@
     }
     return Object.fromEntries(Object.entries(L).map(([s, value]) => [s, r3(value)]));
   }
-  function yellowFactor(H) {
-    const y = YELLOW_BOOST;
-    const w = Math.max(0, Math.min(1, (H - y.zeroBelow) / (y.fullFrom - y.zeroBelow), (y.zeroAbove - H) / (y.zeroAbove - y.fullTo)));
-    return 1 + (y.factor - 1) * w;
+  function rowChroma(hue, step) {
+    return CHROMA_TABLE[hue][step] / 100 * maxChroma(TARGET_L[step], hue);
+  }
+  function tableChroma(H, step) {
+    const hues = Object.keys(CHROMA_TABLE).map(Number).sort((a, b) => a - b);
+    const h = (H % 360 + 360) % 360;
+    let i = hues.findIndex((x) => x > h);
+    if (i === -1) i = 0;
+    const hi = hues[i];
+    const lo = hues[(i - 1 + hues.length) % hues.length];
+    const span = (hi - lo + 360) % 360 || 360;
+    const t = (h - lo + 360) % 360 / span;
+    const C2 = rowChroma(lo, step) * (1 - t) + rowChroma(hi, step) * t;
+    return Math.min(C2, maxChroma(TARGET_L[step], h));
   }
   function buildHuePalette(name, hex, neutrals = [GRAY_HEX], saturation = DEFAULT_SATURATION) {
     var _a;
     const H = r1(hexToOklch(hex).H);
     const factor = (_a = SATURATION_FACTORS[saturation]) != null ? _a : 1;
-    const C400 = REFERENCE_C400 * yellowFactor(H) * factor;
-    const p = { name, anchor: -1, ceilingFactor: factor, steps: {}, warnings: [], errors: [], adjustments: 0, neutrals };
+    const p = { name, anchor: -1, chromaLimit: {}, steps: {}, warnings: [], errors: [], adjustments: 0, neutrals };
     for (const s of STEPS) {
-      commit(p, s, { L: TARGET_L[s], C: curveChroma(C400, s, factor), H });
+      const C2 = Math.max(Math.min(tableChroma(H, s) * factor, maxChroma(TARGET_L[s], H)), MIN_CHROMA);
+      p.chromaLimit[s] = C2;
+      commit(p, s, { L: TARGET_L[s], C: C2, H });
     }
     calibrate(p);
     return p;

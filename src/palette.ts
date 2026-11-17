@@ -25,15 +25,29 @@ export const ANCHOR_CHROMA_REFERENCE: Record<number, number> = { 800: 0.38, 850:
 
 export const MIN_CHROMA = 0.01;
 
-// Section 5.5: the highest chroma a generated step may have, for every hue (tokens.json chromaCeiling).
+// Section 5.5: the highest chroma a generated step of a brand palette may have, for every hue (tokens.json chromaCeiling).
 export const CHROMA_CEILING: Record<number, number> = { 300: 0.14, 400: 0.18 };
 
 // Section 5.5, status and custom palettes (tokens.json hueOnlyPalette).
-export const REFERENCE_C400 = 0.16;
-// The saturation slider, level -> how much of the usual chroma and ceilings the palette gets. Level 5 is the usual look.
+// The saturation slider, level -> how much of the table's chroma the palette gets. Level 5 is the table itself.
 export const SATURATION_FACTORS: Record<number, number> = { 1: 0.28, 2: 0.46, 3: 0.64, 4: 0.82, 5: 1, 6: 1.16, 7: 1.32, 8: 1.48, 9: 1.64, 10: 1.8 };
 export const DEFAULT_SATURATION = 5;
-export const YELLOW_BOOST = { factor: 1.6, zeroBelow: 65, fullFrom: 85, fullTo: 105, zeroAbove: 125 };
+// Each step's chroma as a percent of the largest chroma inside sRGB at the step's target L, per OKLCH hue
+// (tokens.json hueOnlyPalette.chromaTable). Hues between two rows blend their chroma (tableChroma below).
+export const CHROMA_TABLE: Record<number, Record<number, number>> = {
+  27: { 50: 98, 100: 98, 150: 100, 200: 100, 300: 91, 400: 63, 500: 70, 600: 73, 700: 66, 800: 53, 850: 36, 900: 30, 950: 26 },
+  50: { 50: 98, 100: 98, 150: 100, 200: 100, 300: 84, 400: 92, 500: 100, 600: 100, 700: 94, 800: 79, 850: 55, 900: 47, 950: 45 },
+  90: { 50: 78, 100: 82, 150: 82, 200: 83, 300: 93, 400: 99, 500: 100, 600: 98, 700: 94, 800: 98, 850: 98, 900: 98, 950: 92 },
+  125: { 50: 52, 100: 48, 150: 43, 200: 58, 300: 76, 400: 98, 500: 100, 600: 98, 700: 91, 800: 80, 850: 58, 900: 50, 950: 48 },
+  145: { 50: 48, 100: 52, 150: 52, 200: 48, 300: 57, 400: 78, 500: 91, 600: 95, 700: 86, 800: 67, 850: 46, 900: 39, 950: 38 },
+  160: { 50: 48, 100: 60, 150: 62, 200: 62, 300: 72, 400: 82, 500: 91, 600: 98, 700: 91, 800: 89, 850: 64, 900: 56, 950: 53 },
+  185: { 50: 58, 100: 62, 150: 58, 200: 62, 300: 78, 400: 90, 500: 97, 600: 98, 700: 92, 800: 98, 850: 81, 900: 72, 950: 68 },
+  210: { 50: 68, 100: 70, 150: 72, 200: 68, 300: 82, 400: 98, 500: 100, 600: 98, 700: 92, 800: 98, 850: 83, 900: 75, 950: 71 },
+  255: { 50: 83, 100: 83, 150: 87, 200: 100, 300: 98, 400: 79, 500: 88, 600: 91, 700: 82, 800: 64, 850: 44, 900: 37, 950: 33 },
+  280: { 50: 98, 100: 98, 150: 100, 200: 100, 300: 95, 400: 79, 500: 56, 600: 51, 700: 46, 800: 36, 850: 25, 900: 20, 950: 18 },
+  310: { 50: 98, 100: 98, 150: 100, 200: 98, 300: 80, 400: 59, 500: 56, 600: 58, 700: 53, 800: 43, 850: 30, 900: 24, 950: 22 },
+  350: { 50: 98, 100: 98, 150: 100, 200: 99, 300: 77, 400: 58, 500: 68, 600: 71, 700: 65, 800: 51, 850: 35, 900: 29, 950: 26 },
+};
 export const SHIFT_NOTICE_DISTANCE = 0.06;
 export const MAX_ADJUSTMENTS = 50;
 
@@ -84,8 +98,9 @@ export type Palette = {
   anchor: number; // -1 for status and custom palettes, which have no anchor (section 5.3)
   // Steps re-spaced around a brand that moved one step (section 5.2 step 3). They do not chase targets.
   respaced?: number[];
-  // How much the saturation slider scales the chroma ceilings (section 5.5). Brand palettes do not have it.
-  ceilingFactor?: number;
+  // Status and custom palettes: the highest chroma each step may reach in the contrast adjustment, which is
+  // its chroma from the table (section 5.5). Brand palettes do not have it and use CHROMA_CEILING instead.
+  chromaLimit?: Record<number, number>;
   // The neutral palettes the "neutral" pairings are measured against: one per theme that uses this palette.
   neutrals: Neutral[];
   steps: Record<number, { lch: Lch; hex: string }>;
@@ -197,7 +212,8 @@ function fixPair(p: Palette, pair: ContrastPair, threshold: number, allowChroma:
   // Chroma search (step 3): descending to MIN_CHROMA, then ascending to the gamut maximum.
   if (allowChroma) {
     // Never above the step's ceiling (section 5.4 step 3).
-    const maxC = Math.min(maxChroma(cur.L, cur.H), (CHROMA_CEILING[s] ?? Infinity) * (p.ceilingFactor ?? 1));
+    const cap = p.chromaLimit ? p.chromaLimit[s] : (CHROMA_CEILING[s] ?? Infinity);
+    const maxC = Math.min(maxChroma(cur.L, cur.H), cap);
     const order: number[] = [];
     for (let C = r3(cur.C); C >= MIN_CHROMA - 1e-9; C = r3(C - SEARCH_STEP)) order.push(C);
     for (let C = r3(cur.C + SEARCH_STEP); C <= maxC; C = r3(C + SEARCH_STEP)) order.push(C);
@@ -335,22 +351,40 @@ function respacedLightness(closest: number, anchor: number, brandL: number): Rec
   return Object.fromEntries(Object.entries(L).map(([s, value]) => [s, r3(value)]));
 }
 
-// Section 5.5: the yellow factor for an OKLCH hue. 1 outside the yellows, up to YELLOW_BOOST.factor.
-export function yellowFactor(H: number): number {
-  const y = YELLOW_BOOST;
-  const w = Math.max(0, Math.min(1, (H - y.zeroBelow) / (y.fullFrom - y.zeroBelow), (y.zeroAbove - H) / (y.zeroAbove - y.fullTo)));
-  return 1 + (y.factor - 1) * w;
+// Section 5.5: a row's chroma at a step = its percent × the largest in-sRGB chroma at the step's target L and the row's hue.
+function rowChroma(hue: number, step: number): number {
+  return (CHROMA_TABLE[hue][step] / 100) * maxChroma(TARGET_L[step], hue);
+}
+
+// Section 5.5: a step's chroma from the table for any OKLCH hue, at saturation level 5. A hue between two rows
+// takes the linear blend of the two rows' chroma, by hue distance, going around the circle (between the last row
+// and the first through 0°). The blend is of chroma, not of percents: the sRGB limit changes a lot between some
+// rows (the greens), and blending percents would make a hue between two rows more saturated than both.
+// Never above the sRGB limit at the palette's own hue.
+export function tableChroma(H: number, step: number): number {
+  const hues = Object.keys(CHROMA_TABLE).map(Number).sort((a, b) => a - b);
+  const h = ((H % 360) + 360) % 360;
+  let i = hues.findIndex((x) => x > h); // the first row above the hue
+  if (i === -1) i = 0; // above the last row: blend the last row with the first, through 360°
+  const hi = hues[i];
+  const lo = hues[(i - 1 + hues.length) % hues.length];
+  const span = (hi - lo + 360) % 360 || 360;
+  const t = ((h - lo + 360) % 360) / span;
+  const C = rowChroma(lo, step) * (1 - t) + rowChroma(hi, step) * t;
+  return Math.min(C, maxChroma(TARGET_L[step], h));
 }
 
 // Section 5.3. Builds a status or custom palette from the hue of a HEX only: target L for every step,
-// a fixed chroma curve (with the yellow boost and the saturation level), the ceilings, then the contrast adjustment. No anchor.
+// chroma from the table (times the saturation level, never past sRGB), then the contrast adjustment. No anchor.
 export function buildHuePalette(name: string, hex: string, neutrals: Neutral[] = [GRAY_HEX], saturation = DEFAULT_SATURATION): Palette {
   const H = r1(hexToOklch(hex).H);
   const factor = SATURATION_FACTORS[saturation] ?? 1;
-  const C400 = REFERENCE_C400 * yellowFactor(H) * factor;
-  const p: Palette = { name, anchor: -1, ceilingFactor: factor, steps: {}, warnings: [], errors: [], adjustments: 0, neutrals };
+  const p: Palette = { name, anchor: -1, chromaLimit: {}, steps: {}, warnings: [], errors: [], adjustments: 0, neutrals };
   for (const s of STEPS) {
-    commit(p, s, { L: TARGET_L[s], C: curveChroma(C400, s, factor), H });
+    // A high saturation level stops at the sRGB limit, by rule, so it gives no clamp warning.
+    const C = Math.max(Math.min(tableChroma(H, s) * factor, maxChroma(TARGET_L[s], H)), MIN_CHROMA);
+    p.chromaLimit![s] = C;
+    commit(p, s, { L: TARGET_L[s], C, H });
   }
   calibrate(p);
   return p;
