@@ -48,6 +48,8 @@ export const CHROMA_TABLE: Record<number, Record<number, number>> = {
   310: { 50: 98, 100: 98, 150: 100, 200: 98, 300: 80, 400: 59, 500: 56, 600: 58, 700: 53, 800: 43, 850: 30, 900: 24, 950: 22 },
   350: { 50: 98, 100: 98, 150: 100, 200: 99, 300: 77, 400: 58, 500: 68, 600: 71, 700: 65, 800: 51, 850: 35, 900: 29, 950: 26 },
 };
+// The table's hues, lowest first, worked out once.
+const TABLE_HUES = Object.keys(CHROMA_TABLE).map(Number).sort((a, b) => a - b);
 export const SHIFT_NOTICE_DISTANCE = 0.06;
 export const MAX_ADJUSTMENTS = 50;
 
@@ -165,9 +167,9 @@ function measure(p: Palette, pair: ContrastPair): number {
   return minContrast(p.steps[pair.text].hex, pairBackgrounds(p, pair));
 }
 
-// Section 5.5: a step's chroma on the curve, under its ceiling and above the minimum. The gamut clamp comes after.
-function curveChroma(C400: number, s: number, ceilingFactor = 1): number {
-  return Math.max(Math.min(C400 * CHROMA_MULT[s], (CHROMA_CEILING[s] ?? Infinity) * ceilingFactor), MIN_CHROMA);
+// Section 5.5 (brand palettes): a step's chroma on the curve, under its ceiling and above the minimum. The gamut clamp comes after.
+function curveChroma(C400: number, s: number): number {
+  return Math.max(Math.min(C400 * CHROMA_MULT[s], CHROMA_CEILING[s] ?? Infinity), MIN_CHROMA);
 }
 
 function commit(p: Palette, s: number, cand: Lch): void {
@@ -362,7 +364,7 @@ function rowChroma(hue: number, step: number): number {
 // rows (the greens), and blending percents would make a hue between two rows more saturated than both.
 // Never above the sRGB limit at the palette's own hue.
 export function tableChroma(H: number, step: number): number {
-  const hues = Object.keys(CHROMA_TABLE).map(Number).sort((a, b) => a - b);
+  const hues = TABLE_HUES;
   const h = ((H % 360) + 360) % 360;
   let i = hues.findIndex((x) => x > h); // the first row above the hue
   if (i === -1) i = 0; // above the last row: blend the last row with the first, through 360°

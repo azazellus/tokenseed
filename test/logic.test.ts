@@ -690,6 +690,15 @@ assert.deepEqual(exportFiles(twin, "perTheme").map((f) => f.fileName), ["appeara
   const ktOdd = appearanceKotlinFiles(odd, "all", "com.acme.theme");
   assert.equal(ktOdd.problems.length, 2);
   assert.ok(ktOdd.files[0].text!.includes("    val bgBase: Color,") && !ktOdd.files[0].text!.includes("bg base") && !ktOdd.files[0].text!.includes("val in:"));
+  // With no valid property at all there is no class to write (Kotlin needs at least one): no file, and a problem.
+  const none = appearanceKotlinFiles({ version: 1, themes: { T: { appearances: { Light: { "bg base": "#000000" } } } } }, "all", "com.acme.theme");
+  assert.equal(none.files.length, 0);
+  assert.ok(none.problems.some((p) => p.startsWith("No Appearance token can be written")));
+  // Theme names that start with a digit and give the same Kotlin word: every value name is still a valid Kotlin name.
+  const digits = { version: 1 as const, themes: { "2024": { appearances: { Light: { bgBase: "#FFFFFF" } } }, "2024!": { appearances: { Light: { bgBase: "#000000" } } } } };
+  const validNames = (text: string) => (text.match(/^val (\S+)/gm) ?? []).map((v) => v.slice(4));
+  assert.deepEqual(validNames(appearanceKotlinFiles(digits, "all", "com.acme.theme").files[0].text!), ["Theme2024LightAppearanceColors", "Theme2024Light2AppearanceColors"]);
+  assert.deepEqual(validNames(kotlinFiles({ data: digits, dark: {} }, "all", "com.acme.theme", ["bgBase"]).files[0].text!), ["Scheme2024LightColorScheme", "Scheme2024Light2ColorScheme"]);
   // The window offers the format, with the package field and naming row that follow it.
   const ui = readFileSync(new URL("../ui.html", import.meta.url), "utf8");
   assert.ok(ui.includes('id="appearanceFormat"') && ui.includes('<option value="kotlin">Kotlin (Jetpack Compose)</option>') && ui.includes('id="appearanceKotlinPackage"'));
